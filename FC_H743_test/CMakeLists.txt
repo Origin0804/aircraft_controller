@@ -43,8 +43,12 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 )
 
 # Add sources to executable
+# 【勿删】自检程序 test.c：CubeMX 只认识自己生成的文件，重新生成代码会重写
+# cmake/stm32cubemx/CMakeLists.txt 并把 test.c 从源列表里丢掉（曾导致
+# undefined reference to Test_Run）。放回根 CMakeLists（本文件 CubeMX 不覆盖）。
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
+    Core/Src/test.c
 )
 
 # Add include paths

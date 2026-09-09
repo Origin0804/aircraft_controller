@@ -220,10 +220,14 @@ void MPU_Config(void)
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
-  __disable_irq();
-  while (1)
+  /* 测试固件策略【勿删】：初始化失败不静默死机。
+   * 最现实的失败场景是未插 TF 卡时 MX_SDMMC1_SD_Init 报错——它发生在
+   * USART1 初始化之前，若在这里 __disable_irq()+while(1) 整板将无任何输出。
+   * 返回（而非挂死）后主流程继续，test_sd() 会打印 FAIL 与错误码。
+   * 注意：绝不能 __disable_irq() 后返回，否则下一次 HAL_Delay 会永久卡死。 */
+  if (huart1.Instance == USART1 && huart1.gState == HAL_UART_STATE_READY)
   {
+    (void)HAL_UART_Transmit(&huart1, (uint8_t *)"!INIT-ERR!\r\n", 12, 100);
   }
   /* USER CODE END Error_Handler_Debug */
 }

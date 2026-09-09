@@ -101,7 +101,7 @@ cmake --build build/Debug -j4
 ## 5. 注意事项 / 判据说明
 
 - **UART RX 测试需要外部环回**：把某个 UART 的 TX 与 RX 短接（或用两根线互连），才能测接收；本程序默认只测 `TX` 是否正常（`HAL_UART_Transmit` 返回 OK），RX 环回需自行接线，否则 RX 判据留空。
-- **SD 测试需插卡**：无卡会显示 `FAIL (no card)`，属于正常。
+- **SD 测试判读**：无卡显示 `FAIL (no card)`，属正常；若显示 `FAIL (card-in but init fail)` 且 `TF_CD=0`，说明卡在位但通信失败——优先查 CMD/D0-D3/CK 焊点与上拉，其次换卡。SD 初始化内置 3 次重试，兼容上电偏慢的卡。
 - **PWM 摆动**：`[08]` 会把 TIM1/TIM4 共八路按 `1000→1500→2000µs` 摆动一圈后停在 1500，便于用舵机测试仪/示波器确认，也可先不接电机。
 - **ADC 换算为初值**：电压按 `V_adc × 4`（假设 1:4 分压），电流按 `V_adc × 10`（假设 0.1V/A）。若与实测偏差大，按实际分压/采样电阻改 `FC_H743_test/Core/Src/test.c` 中 `adc_read()` 的系数。
 - **电压过低会报 FAIL**：`[05]` 判据为 `V > 0.1V`，若未接电池/电源则显示 LOW。
@@ -116,7 +116,14 @@ cmake --build build/Debug -j4
 - `Core/Src/main.c` —— `USER CODE 2` 中调用 `Test_Run()`（所有 `MX_*_Init` 之后）。
 - `cmake/gcc-arm-none-eabi.cmake` —— 已固定使用 CubeIDE 工具链路径。
 
-> 因为自检代码写在 CubeMX 的 `USER CODE 2` 区并独立成 `test.c`，重新用 CubeMX 生成后不会丢失。
+> ### ⚠️ 用 CubeMX 重新生成代码后必看
+>
+> 实测（2026-09-09）重新生成会丢失的东西比想象多，**重新生成后请按此清单核对**：
+>
+> 1. **`test.c` 会从构建里消失**：CubeMX 会重写 `cmake/stm32cubemx/CMakeLists.txt`，而它不认识 `test.c` → `undefined reference to Test_Run`。现在 `test.c` 已登记在**根 `CMakeLists.txt`**（CubeMX 不覆盖该文件），正常情况下直接构建即可；若再遇到该报错，检查根 CMakeLists 的 user sources。
+> 2. **`sdmmc.c` 的"无卡不进 Error_Handler"补丁会被还原**：即使还原也有第二道保险——`main.c` 的 `Error_Handler()`（USER CODE 区，再生成不覆盖）已改为打印 `!INIT-ERR!` 后**返回**而非挂死，主流程继续、`test_sd()` 照常给出 FAIL。建议仍按 `Core/Src/sdmmc.c` 内注释重新应用补丁，避免每次上电多打印一行 `!INIT-ERR!`。
+> 3. **SPI1 DataSize 可能回退 4BIT**：`.ioc` 已记录 `SPI1.DataSize=SPI_DATASIZE_8BIT`，正常会保留；即使回退，`test.c` 的 `ensure_spi8()` 也会在运行时纠正。
+> 4. `main.c` 的 `Test_Run()` 调用、TIM/TF_CD 上拉等若异常，对照 `.ioc`（SPI DataSize / TIM1 CH4 脉宽 / PA8 上拉均已记录在案）。
 
 ---
 
@@ -131,6 +138,18 @@ cmake --build build/Debug -j4
 | 5 | `Core/Src/tim.c` | TIM1 CH4 初始脉宽为 0（`.ioc` 中 CH4 脉宽键名遗留错误） | M4 上电无波形，与 M1-M3=1500µs 不一致 | 脉宽改 1500，并修正 `.ioc` 键名 `Pulse-PWM Generation4 CH4` |
 | 6 | `cmake/gcc-arm-none-eabi.cmake` | newlib-nano 未加 `-u _printf_float` | `%.2f`/`%.0f` 打印空白：电压/电流/SD 容量都没有数字（实机才会发现） | 链接参数增加 `-u _printf_float`（FLASH 63K→73K，可忽略） |
 
+### 第二轮（同日，针对"TF 卡 bug"及 CubeMX 再生成事故）
+
+| # | 文件 | 问题 | 影响 | 修复 |
+|---|------|------|------|------|
+| 7 | `cmake/stm32cubemx/CMakeLists.txt`（CubeMX 重写） | 中途有人重新生成过代码，`test.c` 被移出源列表 | 工程直接无法链接：`undefined reference to Test_Run` | `test.c` 改登记在**根 `CMakeLists.txt`**（CubeMX 不覆盖），一次修复永久生效 |
+| 8 | `Core/Src/test.c`（`test_sd`） | 无卡与"卡在位但通信失败"都打印 `FAIL (no card)`，无法指导排查；HAL 失败路径 `ErrorCode` 累积不清理 | 现场会把好卡当坏卡换、或漏查焊点 | 重试 3 次 + 每次清 `ErrorCode`；结合 `TF_CD` 区分 `no card` / `card-in but init fail` 并打印错误码 |
+| 9 | `Core/Src/gpio.c` | TF_CD（PA8）输入无上拉，卡座无外部上拉时无卡读数悬空随机 | [8] 的无卡/焊点不良判据不可靠 | TF_CD 启用内部上拉（`.ioc` 已记录 `GPIO_PuPd`），无卡稳定读 1、有卡读 0 |
+| 10 | `Core/Src/main.c`（`Error_Handler`） | 原版 `__disable_irq()+while(1)` 静默挂死，且 SD 初始化失败必经此处 | TF 卡问题的根源；再生成后 [1] 号补丁被还原就复发 | USER CODE 区改为：UART 就绪则打印 `!INIT-ERR!` 后**返回**，绝不静默挂死（再生成不覆盖，属永久保险） |
+| 11 | `Core/Src/test.c`（`ensure_spi8`） | 再生成后 `spi.c` DataSize 回退 4BIT（实测发生了） | IMU 测试失效 | `Test_Run()` 入口运行时强制 8 位帧（`test.c` 不在再生成范围，永久保险） |
+
+> 第 7-11 项均因同一根因：**CubeMX 再生成会还原一切它认识的文件**。第 7、10、11 项已做成再生成也夺不走的修复；第 1、2、5 项补丁仍需在再生成后重新应用（`.ioc` 已记录配置，正常再生成会保留其效果）。
+
 **遗留提醒（未改动）：**
 - UART4 实际配置为 `100000 8N2 + RX 反相`。本测试固件只测 TX 无影响；但主飞控接真 SBUS 时需要 `8E2`（WordLength 9B + Parity EVEN），届时需同步修改 `FC_H743.ioc` 与生成代码。
-- `MX_SDMMC1_SD_Init` 位于 `MX_USART1_UART_Init` 之前（CubeMX 固定排序）。除 SD 外的其他初始化若失败仍会无声死循环；调试时遇到"完全无输出"优先查这一段。
+- `MX_SDMMC1_SD_Init` 位于 `MX_USART1_UART_Init` 之前（CubeMX 固定排序）。即使 `Error_Handler` 不再挂死，其他初始化失败也只能靠 `!INIT-ERR!` 提示定位；遇到该提示时按上表顺序排查。

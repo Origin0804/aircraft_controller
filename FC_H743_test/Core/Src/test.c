@@ -221,10 +221,25 @@ static void test_gpio(void)
              (unsigned)HAL_GPIO_ReadPin(IMU_INT1_GPIO_Port, IMU_INT1_Pin));
 }
 
+/* ---------------- 运行时兜底 ---------------- */
+/* CubeMX 重新生成代码时 SPI1 DataSize 可能回退为其默认值 4BIT（对 H7 SPI 是个坑），
+ * 4 位帧会让 IMU 寄存器读写完全错位。本文件不在 CubeMX 再生成范围内，
+ * 在此强制纠正一次，保证 IMU 测试始终有效。 */
+static void ensure_spi8(void)
+{
+    if (hspi1.Init.DataSize != SPI_DATASIZE_8BIT)
+    {
+        hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
+        (void)HAL_SPI_Init(&hspi1);
+    }
+}
+
 /* ---------------- 主入口 ---------------- */
 void Test_Run(void)
 {
     g_test_idx = 1; g_test_pass = 0; g_test_fail = 0;
+
+    ensure_spi8();
 
     t_print("\r\n");
     t_print("=== FC_H743 PERIPHERAL SELF-TEST ===\r\n");

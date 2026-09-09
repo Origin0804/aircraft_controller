@@ -44,9 +44,13 @@ void MX_SDMMC1_SD_Init(void)
   hsd1.Init.BusWide = SDMMC_BUS_WIDE_4B;
   hsd1.Init.HardwareFlowControl = SDMMC_HARDWARE_FLOW_CONTROL_DISABLE;
   hsd1.Init.ClockDiv = 4;
+  /* 【测试固件专用修改，勿删】未插卡时 HAL_SD_Init 会返回错误，这里绝不能进
+   * Error_Handler：该步骤在 USART1 初始化之前执行，一旦死循环整板串口无任何
+   * 输出。卡是否在位由 test.c 的 test_sd() 重新初始化并打印 FAIL (no card)。
+   * 注意：本文件由 CubeMX 生成，重新生成代码后需重新应用此修改。 */
   if (HAL_SD_Init(&hsd1) != HAL_OK)
   {
-    Error_Handler();
+    /* Error_Handler(); */  /* 无卡属预期状态，不算致命错误 */
   }
   /* USER CODE BEGIN SDMMC1_Init 2 */
 

@@ -89,7 +89,7 @@ void MX_TIM1_Init(void)
   {
     Error_Handler();
   }
-  sConfigOC.Pulse = 0;
+  sConfigOC.Pulse = 1500;  /* CH4 与 CH1-3 一致；.ioc 里 CH4 脉宽键名曾是遗留错误致此为 0 */
   if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
   {
     Error_Handler();
