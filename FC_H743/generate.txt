@@ -1,0 +1,3 @@
+config load /Users/origin/E唯协会/电赛飞机/飞控程序/FC_H743/FC_H743.ioc
+project generate
+exit

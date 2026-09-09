@@ -1,0 +1,44 @@
+# ===== 通用 / 系统 =====
+.DS_Store
+Thumbs.db
+*~
+
+# ===== IDE / 编辑器 =====
+# 含本机路径的本机配置（见 .vscode/settings.json 的 /Users/origin/... 路径）
+.vscode/
+.idea/
+*.code-workspace
+
+# ===== 构建产物 =====
+# 三个工程的 build/（FC_H743、FC_H743_LL、FC_H743_test）
+build/
+*.o
+*.d
+*.elf
+*.bin
+*.hex
+*.map
+*.lst
+*.su
+
+# CMake / Ninja 生成文件
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+build.ninja
+.ninja_deps
+.ninja_log
+
+# ===== CubeMX 生成内容 =====
+# 驱动库：由安装的 STM32Cube_FW_H7 提供，经 CMakeLists 的 FW_ROOT / 再生成获取。
+# （活跃工程 FC_H743_LL 本就不含 Drivers；FC_H743/FC_H743_test 的 Drivers 由 .ioc 重新生成）
+Drivers/
+
+# 无头调用 CubeMX 的终端日志（generate.txt 脚本本身保留）
+cli_log*.txt
+cli_out*.log
+cli_*.log
+
+# 一次性 .ioc 备份（.ioc 本体是配置事实来源，保留）
+*backup*.ioc
+*pre_fix*.ioc
