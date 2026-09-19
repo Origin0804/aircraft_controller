@@ -64,6 +64,26 @@ extern UART_HandleTypeDef huart4;
 /*           Cortex Processor Interruption and Exception Handlers          */
 /******************************************************************************/
 
+/**
+  * @brief This function handles System tick timer.
+  * @note  【必需，勿删】缺了这个函数，链接器会把 SysTick 向量解析到 startup
+  *        文件里的弱符号 Default_Handler（Infinite_Loop 死循环）。HAL_Init()
+  *        启动 SysTick 后约 1ms 内核就永久卡死，SystemClock_Config()、所有外设
+  *        初始化、以及一切串口输出都永远不会发生。
+  *        CMSIS 约定此函数必须由用户提供，HAL 驱动本身不定义它。
+  *        排查方法：halt 后若 pc 落在 0x08006bdc 附近且 xPSR 低 8 位为 0x0f，即是此症。
+  */
+void SysTick_Handler(void)
+{
+  /* USER CODE BEGIN SysTick_IRQn 0 */
+
+  /* USER CODE END SysTick_IRQn 0 */
+  HAL_IncTick();
+  /* USER CODE BEGIN SysTick_IRQn 1 */
+
+  /* USER CODE END SysTick_IRQn 1 */
+}
+
 /******************************************************************************/
 /* STM32H7xx Peripheral Interrupt Handlers                                    */
 /* Add here the Interrupt Handlers for the used peripherals.                  */

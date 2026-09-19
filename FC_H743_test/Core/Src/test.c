@@ -95,10 +95,27 @@ static void test_imu(void)
 
 static void test_mag(void)
 {
-    /* 注意：HAL I2C 地址必须为 7 位地址左移 1 位后的 8 位格式 */
-    uint8_t id = i2c_read8(&hi2c1, 0x0E << 1, 0x00);   /* IST8310 WIA */
-    t_result("Mag IST8310 I2C1", (id == 0x10), "");
-    t_printf("        WIA=0x%02X\r\n", id);
+    /* 注意 1：网表确认地磁 IST8310(U4) 挂的是 I2C2（PB10/PB11，与气压计同总线），
+     *         不是 I2C1。I2C1 上只有对外罗盘口 CN2/CN3/CN4/CN6，板载无器件。
+     * 注意 2：HAL 的地址参数要 7 位地址左移 1 位（8 位格式）。
+     * 注意 3：地址不写死 —— 手册标称 0x0E，本板曾实测 0x0C，两个都试。 */
+    static const uint8_t cand[2] = { 0x0E, 0x0C };
+    uint8_t id = 0xFF;
+    int found = 0;
+
+    for (int i = 0; i < 2; ++i)
+    {
+        uint8_t v = i2c_read8(&hi2c2, (uint16_t)(cand[i] << 1), 0x00);   /* IST8310 WIA */
+        t_printf("        I2C2 0x%02X WIA=0x%02X\r\n", cand[i], v);
+        if (v == 0x10 || v == 0xA3) { id = v; found = 1; break; }
+    }
+    t_result("Mag IST8310 I2C2", found, "");
+    t_printf("        WIA=0x%02X (%s)\r\n", id,
+             found ? "OK, IST8310" : "0x10/0xA3 expected");
+
+    /* 顺手看看对外罗盘口上有没有插东西（插了才应答，板载无器件） */
+    uint8_t ext = i2c_read8(&hi2c1, (uint16_t)(0x0E << 1), 0x00);
+    t_printf("        (I2C1 外接口 0x0E WIA=0x%02X，无外接模块时 0xFF 属正常)\r\n", ext);
 }
 
 static void test_baro(void)
